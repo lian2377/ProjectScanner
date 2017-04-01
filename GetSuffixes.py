@@ -34,7 +34,7 @@ for arg in argList:
                 print("Default:")
                 print("    Getsuffixes.py .")
                 print("Flags:")
-                print("    -s: case sensitive")
+                print("    -s: case sensitive search")
                 print("    -h: display this message")
                 sys.exit(0)
             else:
