@@ -9,6 +9,7 @@ print(sys.argv)
 result = {}
 
 isCaseSensitive = False
+imgFolder = "testimg"
 fileSuffixList = ["c", "cpp", "cc", "h", "hpp"]
 dirList = []
 
@@ -43,6 +44,8 @@ for arg in argList:
                 print("error: Unknown flag(s).")
                 sys.exit(1)
     else:
+        temp = str(arg).replace("\\", os.sep)
+        temp = temp.replace("/", os.sep)
         dirList.append(arg)
 
 ##### scan given directories
@@ -51,6 +54,10 @@ for rootDir in dirList:
     sysHeaderWeight = {}
     projFileWeight = {}
     dirtyBit = {}
+    projectName = rootDir.split(os.sep)[-1]
+    if rootDir.split(os.sep)[-1] == "":
+        projectName = rootDir.split(os.sep)[-2]
+    imgName = imgFolder + os.sep + projectName + ".jpg"
 
     ##### scan files
     print("scanning files...", end='')
@@ -183,13 +190,7 @@ for rootDir in dirList:
     
     ##### create image
     print("creating image...", end='')
-    imgName = "testimg/projectGraph.jpg"
     white = (255, 255, 255)
-    black = (0, 0, 0)
-    gray = (50, 50, 50)
-    blue = (0, 0, 255)
-    red = (255, 0, 0)
-    lightBlue = (0, 255, 255)
     font = ImageFont.truetype("arial.ttf", 50)
     txtRect = {}
     spacingX = 100
@@ -235,33 +236,35 @@ for rootDir in dirList:
     ##### drawing relation graph
     print("drawing relation graph...", end='')
     graphPoints = {}
-    brushY = spacingY * 1.5
+    stepDown = (graphHeight - sum(maxHeightPerLevel)) / len(graphMatrix)
+    brushY = stepDown / 2
     for rowIndex in range(len(graphMatrix)):
         stepRight = (graphWidth - widthPerLevel[rowIndex]) / levelCount[rowIndex] + spacingX
         brushX = stepRight / 2
         if rowIndex > 0:
-            brushY += maxHeightPerLevel[rowIndex - 1] + spacingY
+            brushY += maxHeightPerLevel[rowIndex - 1] + stepDown
         for columnIndex in range(len(graphMatrix[rowIndex])):
             txt = graphMatrix[rowIndex][columnIndex].replace(os.sep, os.sep + "\n")
             if txt != '':
+                randColor = (random.randint(0,128), random.randint(0,128), random.randint(0,240))
+                oppositeColor = (255 - randColor[0], 255 - randColor[1], 255 - randColor[2])
                 txtW, txtH = txtRect[graphMatrix[rowIndex][columnIndex]]
                 diameter = max(txtW, txtH) + diameterOffset
                 circleBrushY = brushY + maxHeightPerLevel[rowIndex]/2 - diameter/2
                 graphPoints[graphMatrix[rowIndex][columnIndex]] = (brushX, circleBrushY)
-                draw.ellipse((brushX, circleBrushY, brushX + diameter, circleBrushY + diameter), gray, gray)
+                draw.ellipse((brushX, circleBrushY, brushX + diameter, circleBrushY + diameter), randColor, randColor)
                 txtX = brushX + diameter/2 - txtW/2
                 txtY = circleBrushY + diameter/2 - txtH/2
-                draw.text((txtX, txtY), txt, lightBlue, font, spacingTxt, align="center")
+                draw.text((txtX, txtY), txt, oppositeColor, font, spacingTxt, align="center")
                 
                 if rowIndex > 0:
-                    randColor = (random.randint(0,240), random.randint(0,240), random.randint(0,240))
                     for header in fileList[graphMatrix[rowIndex][columnIndex]][1:]:
                         arrowTail = (brushX + diameter/2, circleBrushY)
                         arrowHeadX = graphPoints[header][0] + max(txtRect[header])/2 + diameterOffset/2
                         arrowHeadY = graphPoints[header][1] + max(txtRect[header]) + diameterOffset
                         
                         arrowHead = (arrowHeadX, arrowHeadY)
-                        draw.line((arrowTail, arrowHead), randColor, 2)
+                        draw.line((arrowTail, arrowHead), randColor, 5)
                 brushX += stepRight + txtW
     print("done.")
     
