@@ -2,14 +2,12 @@
 
 # c and c++ only
 
-import os, sys, time, random
-from PIL import Image, ImageDraw, ImageFont
+import os, sys, time, json
 
 print(sys.argv)
 result = {}
 
 isCaseSensitive = False
-imgFolder = "testimg"
 fileSuffixList = ["c", "cpp", "cc", "h", "hpp"]
 dirList = []
 
@@ -57,7 +55,6 @@ for rootDir in dirList:
     projectName = rootDir.split(os.sep)[-1]
     if rootDir.split(os.sep)[-1] == "":
         projectName = rootDir.split(os.sep)[-2]
-    imgName = imgFolder + os.sep + projectName + ".jpg"
 
     ##### scan files
     print("scanning files...", end='')
@@ -145,128 +142,36 @@ for rootDir in dirList:
     print("done.")
     time.sleep(0.01)
     
-    ##### create matrix for drawing
-    print("creating matrix for drawing...", end='')
-    levelCount = [0] * maxLevel
-    for sysHeader in sysHeaderWeight:
-        levelCount[0] += 1
-    for fileName in fileList:
-        levelCount[fileList[fileName][0]] += 1
-    getMatrixLen = lambda x: 2*x-1
-    maxNumPerLevel = max(max(levelCount), len(sysHeaderWeight))
-    graphMatrix = []
-    for i in range(maxLevel):
-        graphMatrix.append([''] * getMatrixLen(maxNumPerLevel))
+    ##### store into a json file
+    outData = {}
+    jsnFile = open(projectName + ".force.json", "w", encoding="utf8")
     
-    index = 0
-    currentRow = 0
-    offset = maxNumPerLevel - len(sysHeaderWeight)
-    for sysHeader in sorted(sysHeaderWeight, key=sysHeaderWeight.get):
-        column = index + offset
-        if index % 2 == 1:
-            column = -index - offset
-        if graphMatrix[currentRow][column] != '':
-            print("error: graphMatrix " + str(currentRow) + " " + str(column) + " not empty.")
-            sys.exit(4)
-        graphMatrix[currentRow][column] = sysHeader
-        index += 2
+    outData["nodes"] = []
+    outData["links"] = []
+    for sysHeader in sysHeaderWeight.keys():
+        outData["nodes"].append({"id":sysHeader, "group":0})
+    for fileName in fileList.keys():
+        outData["nodes"].append({"id":fileName, "group":fileList[fileName][0]})
+        for includeFileName in fileList[fileName][1:]:
+            value = 0
+            if includeFileName in sysHeaderWeight:
+                value = sysHeaderWeight[includeFileName]
+            else:
+                value = projFileWeight[includeFileName]
+            outData["links"].append({"source":fileName, "target":includeFileName, "value":value})
     
-    index = 0
-    for fileName in sorted(fileList, key=fileList.get):
-        if currentRow < (fileList[fileName][0]):
-            index = 0
-            currentRow = (fileList[fileName][0])
-            offset = maxNumPerLevel - levelCount[fileList[fileName][0]]
-        column = index + offset
-        if index % 2 == 1:
-            column = -index - offset
-        if graphMatrix[currentRow][column] != '':
-            print("error: graphMatrix " + str(currentRow) + " " + str(column) + " not empty.")
-            sys.exit(4)
-        graphMatrix[currentRow][column] = fileName
-        index += 2
-    print("done.")
-    time.sleep(0.01)
+    jsnFile.write(json.dumps(outData, indent=4, separators=(',', ': ')))
+    jsnFile.close()
     
-    ##### create image
-    print("creating image...", end='')
-    white = (255, 255, 255)
-    font = ImageFont.truetype("arial.ttf", 50)
-    txtRect = {}
-    spacingX = 100
-    spacingY = 400
-    spacingTxt = 2
-    diameterOffset = 40
-    widthPerLevel = [spacingX * 2] * maxLevel
-    maxHeightPerLevel = [spacingY] * maxLevel
-    getMaxLenString = lambda stringList: max([(len(x), x) for x in stringList])
-    for sysHeader in sysHeaderWeight:
-        nouse, txt = getMaxLenString(sysHeader.split(os.sep))
-        w , h = font.getsize(txt)
-        h = (h + spacingTxt) * len(sysHeader.split(os.sep)) - spacingTxt
-        txtRect[sysHeader] = (w, h)
-        diameter = max(w,h)
-        widthPerLevel[0] += diameter + spacingX
-        if maxHeightPerLevel[0] < diameter:
-            maxHeightPerLevel[0] = diameter + spacingY
+    outData.clear()
+    outData = []
+    jsnFile = open(projectName + ".bundling.json", "w", encoding="utf8")
     
-    graphHeight = maxHeightPerLevel[0]
-    currentLevel = 0
-    for fileName in sorted(fileList, key=fileList.get):
-        nouse, txt = getMaxLenString(fileName.split(os.sep))
-        w , h = font.getsize(txt)
-        h = (h + spacingTxt) * len(fileName.split(os.sep)) - spacingTxt
-        txtRect[fileName] = (w, h)
-        diameter = max(w, h)
-        if currentLevel < fileList[fileName][0]:
-            graphHeight += maxHeightPerLevel[currentLevel] + spacingY
-            currentLevel = fileList[fileName][0]
-        elif maxHeightPerLevel[currentLevel] < diameter:
-            maxHeightPerLevel[currentLevel] = diameter
-        widthPerLevel[currentLevel] += diameter + spacingX
+    for sysHeader in sysHeaderWeight.keys():
+        outData.append({"name":sysHeader, "size":sysHeaderWeight[sysHeader], "imports":[]})
+    for fileName in fileList.keys():
+        outData.append({"name":fileName, "size":projFileWeight[fileName], "imports":fileList[fileName][1:]})
     
-    graphWidth = widthPerLevel[levelCount.index(max(levelCount))] + spacingX * 2
-    graphHeight += maxHeightPerLevel[currentLevel] + spacingY
-    graphMidX = graphWidth / 2
-    image = Image.new("RGB", (graphWidth, graphHeight), white)
-    draw = ImageDraw.Draw(image)
-    print("done.")
-    time.sleep(0.01)
-    
-    ##### drawing relation graph
-    print("drawing relation graph...", end='')
-    graphPoints = {}
-    stepDown = (graphHeight - sum(maxHeightPerLevel)) / len(graphMatrix)
-    brushY = stepDown / 2
-    for rowIndex in range(len(graphMatrix)):
-        stepRight = (graphWidth - widthPerLevel[rowIndex]) / levelCount[rowIndex] + spacingX
-        brushX = stepRight / 2
-        if rowIndex > 0:
-            brushY += maxHeightPerLevel[rowIndex - 1] + stepDown
-        for columnIndex in range(len(graphMatrix[rowIndex])):
-            txt = graphMatrix[rowIndex][columnIndex].replace(os.sep, os.sep + "\n")
-            if txt != '':
-                randColor = (random.randint(0,128), random.randint(0,128), random.randint(0,240))
-                oppositeColor = (255 - randColor[0], 255 - randColor[1], 255 - randColor[2])
-                txtW, txtH = txtRect[graphMatrix[rowIndex][columnIndex]]
-                diameter = max(txtW, txtH) + diameterOffset
-                circleBrushY = brushY + maxHeightPerLevel[rowIndex]/2 - diameter/2
-                graphPoints[graphMatrix[rowIndex][columnIndex]] = (brushX, circleBrushY)
-                draw.ellipse((brushX, circleBrushY, brushX + diameter, circleBrushY + diameter), randColor, randColor)
-                txtX = brushX + diameter/2 - txtW/2
-                txtY = circleBrushY + diameter/2 - txtH/2
-                draw.text((txtX, txtY), txt, oppositeColor, font, spacingTxt, align="center")
-                
-                if rowIndex > 0:
-                    for header in fileList[graphMatrix[rowIndex][columnIndex]][1:]:
-                        arrowTail = (brushX + diameter/2, circleBrushY)
-                        arrowHeadX = graphPoints[header][0] + max(txtRect[header])/2 + diameterOffset/2
-                        arrowHeadY = graphPoints[header][1] + max(txtRect[header]) + diameterOffset
-                        
-                        arrowHead = (arrowHeadX, arrowHeadY)
-                        draw.line((arrowTail, arrowHead), randColor, 5)
-                brushX += stepRight + txtW
-    print("done.")
-    
-    image.save(imgName)
+    jsnFile.write(json.dumps(outData, indent=4, separators=(',', ': ')))
+    jsnFile.close()
     
