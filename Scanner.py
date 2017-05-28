@@ -66,27 +66,52 @@ for rootDir in dirList:
     for fileName in fileList.keys():
         if isVerbose and not isQuietScan:
             print(os.path.join(rootDir, fileName))
-        file = open(os.path.join(rootDir, fileName), "r")
+        file = open(os.path.join(rootDir, fileName), "rb")
         dirtyBit[fileName] = [1,]
         if fileName not in projFileWeight:
             projFileWeight[fileName] = 0
+        findBlockComment = False
         for line in file:
-            line = line.rstrip("\n")
+            line = line.rstrip(b"\n\r")
+            try:
+                line = line.decode("utf-8")
+            except:
+                import chardet
+                detect = chardet.detect(line)
+                line = line.decode(detect["encoding"])
+            if line.find("*/") > -1:
+                line = line[line.find("*/")+2:]
+                findBlockComment = False
+            if findBlockComment:
+                continue
+            if line.find("//") > -1:
+                line = line[:line.find("//")]
+            if line.find("/*") > -1:
+                line = line[:line.find("/*")]
+                findBlockComment = True
             if "#include" in line:
-                includeFileName = line.split(" ")[-1][1:-1]
+                includeFileName = line.split("#include")[1].strip(' ').rstrip(' ')
+                if '\"' in includeFileName:
+                    includeFileName = includeFileName.split('\"')[1]
+                elif '<' in includeFileName:
+                    includeFileName = includeFileName.split('>')[0][1:]
+                else:
+                    print(includeFileName)
+                    sys.exit(4)
                 includeFileName = includeFileName.replace("\\", os.sep)
                 includeFileName = includeFileName.replace("/", os.sep)
-                fileNotFound = True
-                for findIncludeFile in fileList.keys():
-                    if os.path.basename(findIncludeFile) == includeFileName:
-                        fileNotFound = False
-                        includeFileName = findIncludeFile
-                        if findIncludeFile in projFileWeight:
-                            projFileWeight[findIncludeFile] += 1
-                        else:
-                            projFileWeight[findIncludeFile] = 1
-                        break
-                if fileNotFound:
+                if includeFileName[0] == '.':
+                    if includeFileName[1] == '.':
+                        includeFileName = '/'.join(fileName.split('/')[:-2] + includeFileName.split('/')[1:])
+                    else:
+                        includeFileName = '/'.join(fileName.split('/')[:-1] + includeFileName.split('/')[1:])
+                
+                if includeFileName in fileList:
+                    if includeFileName in projFileWeight:
+                        projFileWeight[includeFileName] += 1
+                    else:
+                        projFileWeight[includeFileName] = 1
+                else:
                     if includeFileName in sysHeaderWeight:
                         sysHeaderWeight[includeFileName] += 1
                     else:
@@ -106,6 +131,7 @@ for rootDir in dirList:
         doneCalculate = False
         firstRun = True
         maxLevel = 0
+        circularInclude = []
         while(not doneCalculate):
             nProgressedFile = 0
             for fileName in fileList.keys():
@@ -113,7 +139,7 @@ for rootDir in dirList:
                 if listLength < 1:
                     print("error: fileList length should not be 0.")
                     sys.exit(3)
-                elif listLength > 1:
+                elif listLength > 1 and (0 in dirtyBit[fileName]):
                     for header in fileList[fileName][1:]:
                         if dirtyBit[fileName][fileList[fileName].index(header)] == 0:
                             if firstRun and header in sysHeaderWeight:
@@ -127,8 +153,38 @@ for rootDir in dirList:
                                         fileList[fileName][0] = fileList[header][0] + 1
                                     if maxLevel <= fileList[fileName][0]:
                                         maxLevel = fileList[fileName][0] + 1
+                                    if header in circularInclude:
+                                        headerIndex = circularInclude.index(header)
+                                        if headerIndex + 1 == len(circularInclude):
+                                            circularInclude.clear()
+                                        else:
+                                            circularInclude = circularInclude[headerIndex+1:]
                 if 0 not in dirtyBit[fileName]:
                     nProgressedFile += 1
+
+            if len(circularInclude) > 0 and 0 in dirtyBit[circularInclude[-1]]:
+                headerIndex = dirtyBit[circularInclude[-1]].index(0)
+                header = fileList[circularInclude[-1]][headerIndex]
+                if 0 in dirtyBit[header]:
+                    if header in circularInclude:
+                        minWeight = projFileWeight[header]
+                        lightestHeader = header
+                        for circularHeader in circularInclude:
+                            if minWeight > projFileWeight[circularHeader]:
+                                minWeight = projFileWeight[circularHeader]
+                                lightestHeader = circularHeader
+                        for index in range(len(dirtyBit[lightestHeader])):
+                            dirtyBit[lightestHeader][index] = 1
+
+                        index = circularInclude.index(lightestHeader)
+                        if index + 1 == len(circularInclude):
+                            circularInclude.clear()
+                        else:
+                            circularInclude = circularInclude[index+1:]
+                    else:
+                        circularInclude.append(header)
+            else:
+                circularInclude = circularInclude[:-1]
 
             progress = 100.0 * nProgressedFile / len(fileList)
             if not isQuietScan:
@@ -144,6 +200,8 @@ for rootDir in dirList:
             for fileName in dirtyBit:
                 if 0 in dirtyBit[fileName]:
                     doneCalculate = False
+                    if len(circularInclude) == 0:
+                        circularInclude.append(fileName)
                     break
             firstRun = False
         if not isQuietScan:
@@ -156,6 +214,12 @@ for rootDir in dirList:
             print(fileList[fileName])
             print(fileName + " ", end='')
             print(dirtyBit[fileName])
+            if fileName in sysHeaderWeight:
+                print(fileName + " ", end='')
+                print(sysHeaderWeight[fileName])
+            else:
+                print(fileName + " ", end='')
+                print(projFileWeight[fileName])
         traceback.print_exc()
         sys.exit(1)
     
@@ -167,9 +231,9 @@ for rootDir in dirList:
     
     outData["nodes"] = []
     outData["links"] = []
-    for sysHeader in sysHeaderWeight.keys():
+    for sysHeader in sorted(sysHeaderWeight.keys()):
         outData["nodes"].append({"id":sysHeader, "group":0})
-    for fileName in fileList.keys():
+    for fileName in sorted(fileList.keys()):
         outData["nodes"].append({"id":fileName, "group":fileList[fileName][0]})
         for includeFileName in fileList[fileName][1:]:
             value = 0
@@ -186,9 +250,9 @@ for rootDir in dirList:
     outData = []
     jsnFile = open(projectName + ".bundling.json", "w", encoding="utf8")
     
-    for sysHeader in sysHeaderWeight.keys():
+    for sysHeader in sorted(sysHeaderWeight.keys()):
         outData.append({"name":sysHeader, "size":sysHeaderWeight[sysHeader], "imports":[]})
-    for fileName in fileList.keys():
+    for fileName in sorted(fileList.keys()):
         outData.append({"name":fileName, "size":projFileWeight[fileName], "imports":fileList[fileName][1:]})
     
     jsnFile.write(json.dumps(outData, indent=4, separators=(',', ': ')))
