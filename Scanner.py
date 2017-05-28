@@ -2,49 +2,33 @@
 
 # c and c++ only
 
-import os, sys, time, json
+import os, sys, time, json, traceback, argparse
 
-print(sys.argv)
-result = {}
-
-isCaseSensitive = False
 fileSuffixList = ["c", "cpp", "cc", "h", "hpp"]
+
+parser = argparse.ArgumentParser(description="Get include relationes in the given directories.")
+parserGroup = parser.add_mutually_exclusive_group()
+parserGroup.add_argument("-v", "--verbose", action="store_true", help="show verbose output")
+parserGroup.add_argument("-q", "--quiet", action="store_true", help="no output message")
+parser.add_argument("-s", "--sensitive", action="store_true", help="case sensitive file name")
+parser.add_argument("projectpath", nargs="+", help="project root path")
+args = parser.parse_args()
+
+isCaseSensitive = args.sensitive
+isQuietScan = args.quiet
+isVerbose = args.verbose
+
+if not isQuietScan:
+    if isCaseSensitive:
+        print("case sensitive scan enabled.")
+    if isVerbose:
+        print("show verbose message.")
+
 dirList = []
-
-if len(sys.argv) > 1:
-    argList = sys.argv[1:]
-    argList.sort()
-    if argList[-1] == "-":
-        dirList.append(".")
-else:
-    argList = []
-    dirList = ["."]
-
-##### parse configure flags
-for arg in argList:
-    if arg[0] == "-":
-        flags = arg[1:]
-        for flag in flags:
-            if flag == "s":
-                isCaseSensitive = True
-            elif flag == "h":
-                print("------------------------------")
-                print("Get include relationes in the given directories.\n")
-                print("Usage:")
-                print("    Scanner.py [option]... [dir]...")
-                print("Default:")
-                print("    Scanner.py .")
-                print("Flags:")
-                print("    -s: case sensitive search")
-                print("    -h: display this message")
-                sys.exit(0)
-            else:
-                print("error: Unknown flag(s).")
-                sys.exit(1)
-    else:
-        temp = str(arg).replace("\\", os.sep)
-        temp = temp.replace("/", os.sep)
-        dirList.append(arg)
+for arg in args.projectpath:
+    temp = str(arg).replace("\\", os.sep)
+    temp = temp.replace("/", os.sep)
+    dirList.append(arg)
 
 ##### scan given directories
 for rootDir in dirList:
@@ -57,7 +41,8 @@ for rootDir in dirList:
         projectName = rootDir.split(os.sep)[-2]
 
     ##### scan files
-    print("scanning files...", end='')
+    if not isQuietScan:
+        print("scanning files...", end='', flush=True)
     for (dirpath, dirnames, filenames) in os.walk(rootDir):
         for f in filenames:
             suffix = f.split(".")[-1]
@@ -71,13 +56,17 @@ for rootDir in dirList:
     if len(fileList) == 0:
         print("error: no supported file.")
         sys.exit(2)
-    print("done.")
+    if not isQuietScan:
+        print(str(len(fileList)) + " done.")
     time.sleep(0.01)
 
     ##### scan include lines, and give them the basic weight
-    print("scanning includes...", end='')
+    if not isQuietScan:
+        print("scanning includes...", end='', flush=True)
     for fileName in fileList.keys():
-        file = open(os.path.join(rootDir, fileName), "r", encoding="utf8")
+        if isVerbose and not isQuietScan:
+            print(os.path.join(rootDir, fileName))
+        file = open(os.path.join(rootDir, fileName), "r")
         dirtyBit[fileName] = [1,]
         if fileName not in projFileWeight:
             projFileWeight[fileName] = 0
@@ -102,47 +91,77 @@ for rootDir in dirList:
                         sysHeaderWeight[includeFileName] += 1
                     else:
                         sysHeaderWeight[includeFileName] = 1
-                fileList[fileName].append(includeFileName)
-                dirtyBit[fileName].append(0)
+                if includeFileName not in fileList[fileName]:
+                    fileList[fileName].append(includeFileName)
+                    dirtyBit[fileName].append(0)
         file.close()
-    print("done.")
+    if not isQuietScan:
+        print("done.")
     time.sleep(0.01)
     
-    ##### calculate cumulated weight
-    print("calculating cumulated weight...", end='')
-    doneCalculate = False
-    firstRun = True
-    maxLevel = 0
-    while(not doneCalculate):
-        for fileName in fileList:
-            listLength = len(fileList[fileName])
-            if listLength < 1:
-                print("error: fileList length should not be 0.")
-                sys.exit(3)
-            elif listLength > 1:
-                for header in fileList[fileName][1:]:
-                    if dirtyBit[fileName][fileList[fileName].index(header)] == 0:
-                        if firstRun and header in sysHeaderWeight:
-                            projFileWeight[fileName] += sysHeaderWeight[header]
-                            dirtyBit[fileName][fileList[fileName].index(header)] = 1
-                        elif header in projFileWeight:
-                            if 0 not in dirtyBit[header]:
-                                projFileWeight[fileName] += projFileWeight[header]
+    try:
+        ##### calculate cumulated weight
+        if not isQuietScan:
+            print("calculating cumulated weight...     ", end='', flush=True)
+        doneCalculate = False
+        firstRun = True
+        maxLevel = 0
+        while(not doneCalculate):
+            nProgressedFile = 0
+            for fileName in fileList.keys():
+                listLength = len(fileList[fileName])
+                if listLength < 1:
+                    print("error: fileList length should not be 0.")
+                    sys.exit(3)
+                elif listLength > 1:
+                    for header in fileList[fileName][1:]:
+                        if dirtyBit[fileName][fileList[fileName].index(header)] == 0:
+                            if firstRun and header in sysHeaderWeight:
+                                projFileWeight[fileName] += sysHeaderWeight[header]
                                 dirtyBit[fileName][fileList[fileName].index(header)] = 1
-                                if fileList[fileName][0] <= fileList[header][0]:
-                                    fileList[fileName][0] = fileList[header][0] + 1
-                                if maxLevel <= fileList[fileName][0]:
-                                    maxLevel = fileList[fileName][0] + 1
-        doneCalculate = True
-        for fileName in dirtyBit:
-            if 0 in dirtyBit[fileName]:
-                doneCalculate = False
-                break
-        firstRun = False
-    print("done.")
-    time.sleep(0.01)
+                            elif header in projFileWeight:
+                                if 0 not in dirtyBit[header]:
+                                    projFileWeight[fileName] += projFileWeight[header]
+                                    dirtyBit[fileName][fileList[fileName].index(header)] = 1
+                                    if fileList[fileName][0] <= fileList[header][0]:
+                                        fileList[fileName][0] = fileList[header][0] + 1
+                                    if maxLevel <= fileList[fileName][0]:
+                                        maxLevel = fileList[fileName][0] + 1
+                if 0 not in dirtyBit[fileName]:
+                    nProgressedFile += 1
+
+            progress = 100.0 * nProgressedFile / len(fileList)
+            if not isQuietScan:
+                print("\b\b\b\b\b", end='', flush=True)
+                if progress < 10:
+                    print("{:.2f}%".format(progress), end='', flush=True)
+                elif progress < 100:
+                    print("{:.1f}%".format(progress), end='', flush=True)
+                else:
+                    print("{:.0f}%".format(progress), end='', flush=True)
+
+            doneCalculate = True
+            for fileName in dirtyBit:
+                if 0 in dirtyBit[fileName]:
+                    doneCalculate = False
+                    break
+            firstRun = False
+        if not isQuietScan:
+            print("done.")
+        time.sleep(0.01)
+    except:
+        print()
+        for fileName in fileList:
+            print(fileName + " ", end='')
+            print(fileList[fileName])
+            print(fileName + " ", end='')
+            print(dirtyBit[fileName])
+        traceback.print_exc()
+        sys.exit(1)
     
     ##### store into a json file
+    if not isQuietScan:
+        print("saving json files...", end='', flush=True)
     outData = {}
     jsnFile = open(projectName + ".force.json", "w", encoding="utf8")
     
@@ -174,4 +193,6 @@ for rootDir in dirList:
     
     jsnFile.write(json.dumps(outData, indent=4, separators=(',', ': ')))
     jsnFile.close()
-    
+    if not isQuietScan:
+        print("done.")
+    print("Scan finished.")

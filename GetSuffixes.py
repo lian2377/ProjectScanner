@@ -5,57 +5,49 @@ Created on Sun Mar 26 15:34:29 2017
 @author: Lian
 """
 
-import os, sys
+import os, sys, argparse, chardet
 
-print(sys.argv)
+fileSuffixList = ["c", "cpp", "cc", "h", "hpp"]
+
+parser = argparse.ArgumentParser(description="Get include relationes in the given directories.")
+parser.add_argument("-q", "--quiet", action="store_true", help="no output message")
+parser.add_argument("-s", "--sensitive", action="store_true", help="case sensitive file name")
+parser.add_argument("projectpath", nargs="+", help="project root path")
+args = parser.parse_args()
+
+isCaseSensitive = args.sensitive
+isQuietScan = args.quiet
+
+if not isQuietScan:
+    if isCaseSensitive:
+        print("case sensitive scan enabled.")
+
+dirList = []
+for arg in args.projectpath:
+    temp = str(arg).replace("\\", os.sep)
+    temp = temp.replace("/", os.sep)
+    dirList.append(arg)
+
 result = {}
-
-isCaseSensitive = False
-
-if len(sys.argv) > 1:
-    argList = sys.argv[1:]
-    argList.sort()
-    if argList[len(argList)-1][0] == "-":
-        argList.append(".")
-else:
-    argList = ["."]
-
-for arg in argList:
-    if arg[0] == "-":
-        flags = arg[1:]
-        for flag in flags:
-            if flag == "s":
-                isCaseSensitive = True
-            elif flag == "h":
-                print("------------------------------")
-                print("Scans all suffixes in the given directories.\n")
-                print("Usage:")
-                print("    Getsuffixes.py [option]... [dir]...")
-                print("Default:")
-                print("    Getsuffixes.py .")
-                print("Flags:")
-                print("    -s: case sensitive search")
-                print("    -h: display this message")
-                sys.exit(0)
+for rootDir in dirList:
+    for (dirpath, dirnames, filenames) in os.walk(rootDir):
+        for f in filenames:
+            if isCaseSensitive:
+                fsplit = f.split(".")
             else:
-                print("Unknown flag error")
-                sys.exit(1)
-    else:
-        for (dirpath, dirnames, filenames) in os.walk(arg):
-            for f in filenames:
-                if isCaseSensitive:
-                    fsplit = f.split(".")
-                else:
-                    fsplit = f.lower().split(".")
-                if len(fsplit) == 1:
-                    continue
-                print(os.path.join(dirpath, f).encode("utf8").decode("utf8"))
-                suf = fsplit[len(fsplit)-1]
+                fsplit = f.lower().split(".")
+            if len(fsplit) == 1:
+                continue
+            suf = fsplit[-1]
+            if not isQuietScan:
+                print(os.path.join(dirpath, f))
                 print(suf)
-                if suf in result:
-                    result[suf] += 1
-                else:
-                    result[suf] = 1
+                if suf in fileSuffixList:
+                    print(chardet.detect(open(os.path.join(dirpath, f), "rb").read()))
+            if suf in result:
+                result[suf] += 1
+            else:
+                result[suf] = 1
 print("get suffixes:")
 keylist = list(result.keys())
 keylist.sort()

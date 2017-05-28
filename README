@@ -1,25 +1,30 @@
 This is a project for project programs tracking.
-Developed in Python3.5.
+Developed in Python3.6
 
 ----------USAGE----------
 Scanner.py
+    usage: Scanner.py [-h] [-v | -q] [-s] projectpath [projectpath ...]
+
     Get include relationes in the given directories.
 
-    Usage:
-        Scanner.py [option]... [dir]...
-    Default:
-        Scanner.py .
-    Flags:
-        -s: case sensitive search
-        -h: display this message
+    positional arguments:
+      projectpath      project root path
+
+    optional arguments:
+      -h, --help       show this help message and exit
+      -v, --verbose    show verbose output
+      -q, --quiet      no output message
+      -s, --sensitive  case sensitive file name
         
 GetSuffixes.py
-    Scans all suffixes in the given directories.
+    usage: GetSuffixes.py [-h] [-q] [-s] projectpath [projectpath ...]
 
-    Usage:
-        Getsuffixes.py [option]... [dir]...
-    Default:
-        Getsuffixes.py .
-    Flags:
-        -s: case sensitive search
-        -h: display this message
+    Get include relationes in the given directories.
+
+    positional arguments:
+      projectpath      project root path
+
+    optional arguments:
+      -h, --help       show this help message and exit
+      -q, --quiet      no output message
+      -s, --sensitive  case sensitive file name
