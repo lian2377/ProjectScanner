@@ -10,17 +10,13 @@ parser = argparse.ArgumentParser(description="Get include relationes in the give
 parserGroup = parser.add_mutually_exclusive_group()
 parserGroup.add_argument("-v", "--verbose", action="store_true", help="show verbose output")
 parserGroup.add_argument("-q", "--quiet", action="store_true", help="no output message")
-parser.add_argument("-s", "--sensitive", action="store_true", help="case sensitive file name")
 parser.add_argument("projectpath", nargs="+", help="project root path")
 args = parser.parse_args()
 
-isCaseSensitive = args.sensitive
 isQuietScan = args.quiet
 isVerbose = args.verbose
 
 if not isQuietScan:
-    if isCaseSensitive:
-        print("case sensitive scan enabled.")
     if isVerbose:
         print("show verbose message.")
 
@@ -42,15 +38,17 @@ for rootDir in dirList:
 
     ##### scan files
     if not isQuietScan:
+        print("root directory: " + rootDir)
         print("scanning files...", end='', flush=True)
     for (dirpath, dirnames, filenames) in os.walk(rootDir):
         for f in filenames:
             suffix = f.split(".")[-1]
-            if not isCaseSensitive:
-                suffix = suffix.lower()
+            suffix = suffix.lower()
             if suffix in fileSuffixList:
                 relativePath = os.path.relpath(dirpath, rootDir)
                 relativeFileName = os.path.join(relativePath, f)
+                if relativeFileName[0] == '.':
+                    relativeFileName = os.sep.join(relativeFileName.split(os.sep)[1:])
                 fileList[relativeFileName] = [1,]
 
     if len(fileList) == 0:
@@ -102,10 +100,10 @@ for rootDir in dirList:
                 includeFileName = includeFileName.replace("/", os.sep)
                 if includeFileName[0] == '.':
                     if includeFileName[1] == '.':
-                        includeFileName = '/'.join(fileName.split('/')[:-2] + includeFileName.split('/')[1:])
+                        includeFileName = os.sep.join(fileName.split(os.sep)[:-2] + includeFileName.split(os.sep)[1:])
                     else:
-                        includeFileName = '/'.join(fileName.split('/')[:-1] + includeFileName.split('/')[1:])
-                
+                        includeFileName = os.sep.join(fileName.split(os.sep)[:-1] + includeFileName.split(os.sep)[1:])
+                    
                 if includeFileName in fileList:
                     if includeFileName in projFileWeight:
                         projFileWeight[includeFileName] += 1
@@ -120,6 +118,7 @@ for rootDir in dirList:
                     fileList[fileName].append(includeFileName)
                     dirtyBit[fileName].append(0)
         file.close()
+
     if not isQuietScan:
         print("done.")
     time.sleep(0.01)
