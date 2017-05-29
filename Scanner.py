@@ -222,11 +222,11 @@ for rootDir in dirList:
         traceback.print_exc()
         sys.exit(1)
     
-    ##### store into a json file
+    ##### store into a json file (force-directed)
     if not isQuietScan:
-        print("saving json files...", end='', flush=True)
+        print("saving force-directed graph json files...", end='', flush=True)
     outData = {}
-    jsnFile = open(projectName + ".force.json", "w", encoding="utf8")
+    jsnFile = open(projectName + ".force-directed.json", "w", encoding="utf8")
     
     outData["nodes"] = []
     outData["links"] = []
@@ -244,7 +244,12 @@ for rootDir in dirList:
     
     jsnFile.write(json.dumps(outData, indent=4, separators=(',', ': ')))
     jsnFile.close()
+
+    if not isQuietScan:
+        print("done.")
+        print("saving bundling graph json files...", end='', flush=True)
     
+    ##### store into a json file (bundling)
     outData.clear()
     outData = []
     jsnFile = open(projectName + ".bundling.json", "w", encoding="utf8")
@@ -256,6 +261,81 @@ for rootDir in dirList:
     
     jsnFile.write(json.dumps(outData, indent=4, separators=(',', ': ')))
     jsnFile.close()
+
+    if not isQuietScan:
+        print("done.")
+        print("saving tree graph json files...", end='', flush=True)
+        if isVerbose:
+            print()
+    ##### store into a json file (tree)
+    treeRoot = {"name": projectName, "children": []}
+    for fileName in fileList:
+        if isVerbose:
+            print(fileName)
+        target = treeRoot
+        newNodeList = fileName.split(os.sep)
+        firstNode = newNodeList[0]
+        checkList = []
+        for node in treeRoot["children"]:
+            checkList.append(node)
+        findFirstPos = False
+        while not findFirstPos:
+            tmpList = []
+            for node in checkList:
+                if node["name"] == firstNode:
+                    findFirstPos = True
+                    target = node
+                    if "children" in node:
+                        lastExistNode = node
+                        for newNodeName in newNodeList[1:]:
+                            findNextPos = False
+                            nextNode = node
+                            for node2 in lastExistNode["children"]:
+                                if node2["name"] == newNodeName:
+                                    findNextPos = True
+                                    nextNode = node2
+                                    break
+                            if findNextPos:
+                                lastExistNode = nextNode
+                                target = lastExistNode
+                                if "children" not in nextNode:
+                                    break
+                    break
+                elif "children" in node:
+                    for node2 in node["children"]:
+                        tmpList.append(node2)
+            if not findFirstPos:
+                if len(tmpList) == 0:
+                    target = treeRoot
+                    findFirstPos = True
+                checkList = tmpList
+
+        if target["name"] != treeRoot["name"]:
+            newNodeList = newNodeList[newNodeList.index(target["name"])+1:]
+
+        for newNodeName in newNodeList:
+            if newNodeName == newNodeList[-1]:
+                target["children"].append({"name": newNodeName})
+            else:
+                target["children"].append({"name": newNodeName, "children": []})
+                target = target["children"][-1]
+
+    unsortList = []
+    treeRoot["children"] = sorted(treeRoot["children"], key=lambda x: x["name"])
+    unsortList.append(treeRoot["children"])
+    while True:
+        if len(unsortList) == 0:
+            break
+        for item in unsortList[0]:
+            if "children" in item:
+                item["children"] = sorted(item["children"], key=lambda x: x["name"])
+                unsortList.append(item["children"])
+        unsortList.pop(0)
+
+    jsnFile = open(projectName + ".tree.json", "w", encoding="utf8")
+    jsnFile.write(json.dumps(treeRoot, indent=4, separators=(',', ': ')))
+    jsnFile.close()
+
     if not isQuietScan:
         print("done.")
     print("Scan finished.")
