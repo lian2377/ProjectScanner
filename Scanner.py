@@ -3,6 +3,7 @@
 # c and c++ only
 
 import os, sys, time, json, traceback, argparse
+import ScanProjectStructure
 
 fileSuffixList = ["c", "cpp", "cc", "h", "hpp"]
 
@@ -10,15 +11,19 @@ parser = argparse.ArgumentParser(description="Get include relationes in the give
 parserGroup = parser.add_mutually_exclusive_group()
 parserGroup.add_argument("-v", "--verbose", action="store_true", help="show verbose output")
 parserGroup.add_argument("-q", "--quiet", action="store_true", help="no output message")
+parserGroup.add_argument("--debug", action="store_true", help="show debug message")
 parser.add_argument("projectpath", nargs="+", help="project root path")
 args = parser.parse_args()
 
 isQuietScan = args.quiet
 isVerbose = args.verbose
+isDebugging = args.debug
 
 if not isQuietScan:
     if isVerbose:
         print("show verbose message.")
+    if isDebugging:
+        print("show debug message")
 
 dirList = []
 for arg in args.projectpath:
@@ -32,9 +37,7 @@ for rootDir in dirList:
     sysHeaderWeight = {}
     projFileWeight = {}
     dirtyBit = {}
-    projectName = rootDir.split(os.sep)[-1]
-    if rootDir.split(os.sep)[-1] == "":
-        projectName = rootDir.split(os.sep)[-2]
+    projectName = rootDir.rstrip(os.sep).split(os.sep)[-1]
 
     ##### scan files
     if not isQuietScan:
@@ -265,76 +268,9 @@ for rootDir in dirList:
     if not isQuietScan:
         print("done.")
         print("saving tree graph json files...", end='', flush=True)
-        if isVerbose:
-            print()
+
     ##### store into a json file (tree)
-    treeRoot = {"name": projectName, "children": []}
-    for fileName in fileList:
-        if isVerbose:
-            print(fileName)
-        target = treeRoot
-        newNodeList = fileName.split(os.sep)
-        firstNode = newNodeList[0]
-        checkList = []
-        for node in treeRoot["children"]:
-            checkList.append(node)
-        findFirstPos = False
-        while not findFirstPos:
-            tmpList = []
-            for node in checkList:
-                if node["name"] == firstNode:
-                    findFirstPos = True
-                    target = node
-                    if "children" in node:
-                        lastExistNode = node
-                        for newNodeName in newNodeList[1:]:
-                            findNextPos = False
-                            nextNode = node
-                            for node2 in lastExistNode["children"]:
-                                if node2["name"] == newNodeName:
-                                    findNextPos = True
-                                    nextNode = node2
-                                    break
-                            if findNextPos:
-                                lastExistNode = nextNode
-                                target = lastExistNode
-                                if "children" not in nextNode:
-                                    break
-                    break
-                elif "children" in node:
-                    for node2 in node["children"]:
-                        tmpList.append(node2)
-            if not findFirstPos:
-                if len(tmpList) == 0:
-                    target = treeRoot
-                    findFirstPos = True
-                checkList = tmpList
-
-        if target["name"] != treeRoot["name"]:
-            newNodeList = newNodeList[newNodeList.index(target["name"])+1:]
-
-        for newNodeName in newNodeList:
-            if newNodeName == newNodeList[-1]:
-                target["children"].append({"name": newNodeName})
-            else:
-                target["children"].append({"name": newNodeName, "children": []})
-                target = target["children"][-1]
-
-    unsortList = []
-    treeRoot["children"] = sorted(treeRoot["children"], key=lambda x: x["name"])
-    unsortList.append(treeRoot["children"])
-    while True:
-        if len(unsortList) == 0:
-            break
-        for item in unsortList[0]:
-            if "children" in item:
-                item["children"] = sorted(item["children"], key=lambda x: x["name"])
-                unsortList.append(item["children"])
-        unsortList.pop(0)
-
-    jsnFile = open(projectName + ".tree.json", "w", encoding="utf8")
-    jsnFile.write(json.dumps(treeRoot, indent=4, separators=(',', ': ')))
-    jsnFile.close()
+    ScanProjectStructure.scan(rootDir, True)
 
     if not isQuietScan:
         print("done.")
