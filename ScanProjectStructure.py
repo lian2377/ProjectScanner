@@ -12,10 +12,8 @@ def scan(projectPath, fileOutput = False):
             if relativeFileName[0] == '.':
                 relativeFileName = os.sep.join(relativeFileName.split(os.sep)[1:])
             completeFileList.append(relativeFileName)
-    nodeID = 0
-    treeRoot = {"name": projectName, "children": [], "id": nodeID}
+    treeRoot = {"name": projectName, "children": []}
     for fileName in completeFileList:
-        print(fileName)
         target = treeRoot
         targetPath = []
         newNodeList = fileName.split(os.sep)
@@ -59,19 +57,18 @@ def scan(projectPath, fileOutput = False):
                     findFirstPos = True
                 checkList = tmpList
 
-        if target["id"] != treeRoot["id"]:
+        if target != treeRoot:
             for node in targetPath:
                 newNodeList.pop(0)
 
         i = 0
         for newNodeName in newNodeList:
             if i == len(newNodeList)-1:
-                target["children"].append({"name": newNodeName, "id": nodeID})
+                target["children"].append({"name": newNodeName})
             else:
-                target["children"].append({"name": newNodeName, "children": [], "id": nodeID})
+                target["children"].append({"name": newNodeName, "children": []})
                 target = target["children"][-1]
             i += 1
-            nodeID += 1
 
     unsortList = []
     treeRoot["children"] = sorted(treeRoot["children"], key=lambda x: x["name"])
@@ -90,4 +87,3 @@ def scan(projectPath, fileOutput = False):
         jsnFile.write(json.dumps(treeRoot, indent=4, separators=(',', ': ')))
         jsnFile.close()
     return treeRoot
-    
