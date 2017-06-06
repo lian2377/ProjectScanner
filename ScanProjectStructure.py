@@ -1,19 +1,22 @@
 import os, json
 
-def scan(projectPath, fileOutput = False):
+def scan(projectPath, fileOutput = False, suffixList = None):
     rootDir = str(projectPath).replace("\\", os.sep)
     rootDir = rootDir.replace("/", os.sep)
     projectName = rootDir.rstrip(os.sep).split(os.sep)[-1]
-    completeFileList = []
+    getSuffix = lambda s:s.split('.')[-1]
+    fileList = []
     for (dirpath, dirnames, filenames) in os.walk(rootDir):
         for f in filenames:
+            if suffixList is not None and getSuffix(f) not in suffixList:
+                continue
             relativePath = os.path.relpath(dirpath, rootDir)
             relativeFileName = os.path.join(relativePath, f)
             if relativeFileName[0] == '.':
                 relativeFileName = os.sep.join(relativeFileName.split(os.sep)[1:])
-            completeFileList.append(relativeFileName)
+            fileList.append(relativeFileName)
     treeRoot = {"name": projectName, "children": []}
-    for fileName in completeFileList:
+    for fileName in fileList:
         target = treeRoot
         targetPath = []
         newNodeList = fileName.split(os.sep)
@@ -83,7 +86,10 @@ def scan(projectPath, fileOutput = False):
         unsortList.pop(0)
 
     if fileOutput:
-        jsnFile = open(projectName + ".tree.json", "w", encoding="utf8")
+        jsnFileName = projectName
+        if suffixList is None:
+            jsnFileName += ".all"
+        jsnFile = open(jsnFileName + ".tree.json", "w", encoding="utf8")
         jsnFile.write(json.dumps(treeRoot, indent=4, separators=(',', ': ')))
         jsnFile.close()
     return treeRoot

@@ -271,6 +271,7 @@ for rootDir in dirList:
 
     ##### store into a json file (tree)
     ScanProjectStructure.scan(rootDir, True)
+    ScanProjectStructure.scan(rootDir, True, fileSuffixList)
 
     if not isQuietScan:
         print("done.")
