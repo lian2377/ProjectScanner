@@ -13,6 +13,7 @@ parserGroup.add_argument("-v", "--verbose", action="store_true", help="show verb
 parserGroup.add_argument("-q", "--quiet", action="store_true", help="no output message")
 parserGroup.add_argument("--debug", action="store_true", help="show debug message")
 parserGroup.add_argument("-st", "--scantree", action="store_true", help="scan and output project tree structure")
+parserGroup.add_argument("-R", "--recursive", action="store_true", help="scan subdirectories recursively")
 parser.add_argument("projectpath", nargs="+", help="project root path")
 args = parser.parse_args()
 
@@ -20,6 +21,7 @@ isQuietScan = args.quiet
 isVerbose = args.verbose
 isDebugging = args.debug
 isScanTree = args.scantree
+isRecursive = args.recursive
 
 if not isQuietScan:
     if isVerbose:
@@ -31,7 +33,11 @@ dirList = []
 for arg in args.projectpath:
     temp = str(arg).replace("\\", os.sep)
     temp = temp.replace("/", os.sep)
-    dirList.append(arg)
+    dirList.append(temp)
+    if isRecursive:
+        for (dirpath, dirnames, filenames) in os.walk(arg):
+            for d in dirnames:
+                dirList.append(os.path.join(dirpath, d))
 
 ##### scan given directories
 for rootDir in dirList:
@@ -39,7 +45,7 @@ for rootDir in dirList:
     sysHeaderWeight = {}
     projFileWeight = {}
     dirtyBit = {}
-    projectName = rootDir.rstrip(os.sep).split(os.sep)[-1]
+    projectName = rootDir.strip('.').strip(os.sep).replace(os.sep, '.')
 
     ##### scan files
     if not isQuietScan:
@@ -64,7 +70,10 @@ for rootDir in dirList:
 
     if len(fileList) == 0:
         print("error: no supported file.")
-        sys.exit(2)
+        if not isRecursive:
+            sys.exit(2)
+        else:
+            continue
     if not isQuietScan:
         if isVerbose:
             print("fileList: {0}".format(fileList))
