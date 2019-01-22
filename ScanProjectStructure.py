@@ -67,6 +67,8 @@ def scan(projectPath, fileOutput = False, suffixList = None):
         i = 0
         for newNodeName in newNodeList:
             if i == len(newNodeList)-1:
+                if "children" not in target:
+                    target["children"] = []
                 target["children"].append({"name": newNodeName})
             else:
                 target["children"].append({"name": newNodeName, "children": []})
