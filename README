@@ -28,4 +28,3 @@ GetSuffixes.py
     optional arguments:
       -h, --help       show this help message and exit
       -q, --quiet      no output message
-      -s, --sensitive  case sensitive file name
