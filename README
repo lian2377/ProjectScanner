@@ -14,8 +14,9 @@ Scanner.py
       -h, --help       show this help message and exit
       -v, --verbose    show verbose output
       -q, --quiet      no output message
-      -s, --sensitive  case sensitive file name
-        
+      -st, --scantree  scan and output project tree structure
+      -R, --recursive  scan subdirectories recursively
+      
 GetSuffixes.py
     usage: GetSuffixes.py [-h] [-q] [-s] projectpath [projectpath ...]
 
